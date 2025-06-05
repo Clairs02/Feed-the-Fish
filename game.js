@@ -5,6 +5,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const container = document.getElementById("fish-container");
   const webRoomsWebSocketServerAddr = 'https://nosch.uber.space/web-rooms/';
 
+  //WebSocket integrieren
+let roomName = 'fishy';
+let serverURL = 'wss://nosch.uber.space/web-rooms/';
+let socket = new WebSocket(serverURL);
+let clientId = null;
+
   // 🎧 Sounds
   const failSound = document.getElementById("fail-sound");
   const nomnomSound = document.getElementById("nomnom-sound");
@@ -227,69 +233,58 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-/**********************
- * websocket communication
- */
-const socket = new WebSocket(webRoomsWebSocketServerAddr);
+//Nachricht an Server
+function sendMessage(...msg) {
+  socket.send(JSON.stringify(msg));
+}
 
-// listen to opening websocket connections
-socket.addEventListener('open', (event) => {
-  sendRequest('enter-room', 'fishy');
-  sendRequest('subscribe-client-count');
-
-  // ping the server regularly with an empty message to prevent the socket from closing
-  setInterval(() => socket.send(''), 30000);
+socket.addEventListener('open', () => {
+  sendMessage('*enter-room*', roomName); // Raum betreten
+  sendMessage('*subscribe-client-count*'); //Spieleranzahl abonnieren
+  sendMessage('*subscribe-client-enter-exit*'); // Beitritte/Verlassen abonnieren
+  setInterval(() => socket.send(''), 30000); // Verbindung halten
 });
 
-socket.addEventListener("close", (event) => {
-  clientId = null;
-  document.body.classList.add('disconnected');
-});
-
-// listen to messages from server
 socket.addEventListener('message', (event) => {
-  const data = event.data;
+  if (!event.data) return;
+  const msg = JSON.parse(event.data);
+  const type = msg[0];
 
-  if (data.length > 0) {
-    const incoming = JSON.parse(data);
-    const selector = incoming[0];
+  switch (type) {
+    case '*client-id*':
+      clientId = msg[1];
+      player.id = clientId;
+      sendMessage('*broadcast-message*', ['position', player]);
+      draw();
+      break;
 
-    // dispatch incomming messages
-    switch (selector) {
-      case 'client-id':
-        clientId = incoming[1];
-        startMaster();
-        break;
+   case 'position':
+  const other = msg[1];
+  if (other.id !== clientId) {
+    if (!otherPlayers[other.id]) {
+      // Falls Spieler neu ist, initialisieren
+      otherPlayers[other.id] = other;
+    } else {
+      // Nur direction und Position updaten
+      otherPlayers[other.id].direction = other.direction;
 
-      case 'client-count':
-        clientCount = incoming[1];
-        minClientCount = Math.max(minClientCount, clientCount);
-        updateInfo();
-        break;
+      // Option 1: Nur Kopfposition aktualisieren (nicht ganze body überschreiben)
+    
 
-      case 'answer': {
-        const answerOptionId = incoming[1];
-        const answerClientId = incoming[2];
-        setAnswer(answerOptionId, answerClientId);
-        break;
-      }
-
-      case 'error': {
-        const message = incoming[1];
-        console.warn('server error:', ...message);
-        break;
-      }
-
-      default:
-        break;
+      // Option 2 (besser sichtbar): Nehme nur body[0] vom Server und ergänze die Schlange lokal
+      otherPlayers[other.id].body[0] = other.body[0];
     }
   }
+  break;
+
+
+    case '*client-exit*':
+      const leftId = msg[1];
+      delete otherPlayers[leftId];
+      break;
+
+    case '*error*':
+      console.warn('Server error:', msg[1]);
+      break;
+  }
 });
-
-window.addEventListener("close", () => {
-})
-
-function sendRequest(...message) {
-  const str = JSON.stringify(message);
-  socket.send(str);
-}
