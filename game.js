@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const fishImage = fish1.querySelector("img");
   const fish2 = document.querySelector("#row-1 .fish.right");
   const container = document.getElementById("fish-container");
+  const webRoomsWebSocketServerAddr = 'https://nosch.uber.space/web-rooms/';
 
   // 🎧 Sounds
   const failSound = document.getElementById("fail-sound");
@@ -233,7 +234,7 @@ const socket = new WebSocket(webRoomsWebSocketServerAddr);
 
 // listen to opening websocket connections
 socket.addEventListener('open', (event) => {
-  sendRequest('enter-room', 'quizzy');
+  sendRequest('enter-room', 'fishy');
   sendRequest('subscribe-client-count');
 
   // ping the server regularly with an empty message to prevent the socket from closing
