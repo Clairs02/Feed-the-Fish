@@ -220,3 +220,75 @@ document.addEventListener("DOMContentLoaded", () => {
 
   animateFood();
 });
+
+
+
+
+
+
+/**********************
+ * websocket communication
+ */
+const socket = new WebSocket(webRoomsWebSocketServerAddr);
+
+// listen to opening websocket connections
+socket.addEventListener('open', (event) => {
+  sendRequest('enter-room', 'quizzy');
+  sendRequest('subscribe-client-count');
+
+  // ping the server regularly with an empty message to prevent the socket from closing
+  setInterval(() => socket.send(''), 30000);
+});
+
+socket.addEventListener("close", (event) => {
+  clientId = null;
+  document.body.classList.add('disconnected');
+});
+
+// listen to messages from server
+socket.addEventListener('message', (event) => {
+  const data = event.data;
+
+  if (data.length > 0) {
+    const incoming = JSON.parse(data);
+    const selector = incoming[0];
+
+    // dispatch incomming messages
+    switch (selector) {
+      case 'client-id':
+        clientId = incoming[1];
+        startMaster();
+        break;
+
+      case 'client-count':
+        clientCount = incoming[1];
+        minClientCount = Math.max(minClientCount, clientCount);
+        updateInfo();
+        break;
+
+      case 'answer': {
+        const answerOptionId = incoming[1];
+        const answerClientId = incoming[2];
+        setAnswer(answerOptionId, answerClientId);
+        break;
+      }
+
+      case 'error': {
+        const message = incoming[1];
+        console.warn('server error:', ...message);
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
+});
+
+window.addEventListener("close", () => {
+})
+
+function sendRequest(...message) {
+  const str = JSON.stringify(message);
+  socket.send(str);
+}
